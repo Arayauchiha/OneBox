@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable{
+struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable {
     var alignment: Alignment
     var progress: CGFloat
     var labelSize: CGSize = .init(width: 55, height: 55)
@@ -17,27 +17,28 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable{
     /// View properties
     @State private var contentSize: CGSize = .zero
 
-    var animatableData: CGFloat{
+    var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
+
     var body: some View {
-        GlassEffectContainer{
+        GlassEffectContainer {
             let widthDiff = contentSize.width - labelSize.width
             let heightDiff = contentSize.height - labelSize.height
 
             let rWidth = widthDiff * contentOpacity
             let rHeight = heightDiff * contentOpacity
 
-            ZStack(alignment: alignment){
+            ZStack(alignment: alignment) {
                 content
                     .compositingGroup()
                     .scaleEffect(contentScale)
                     .blur(radius: 14 * blurProgress)
                     .opacity(contentOpacity)
-                    .onGeometryChange(for: CGSize.self){
+                    .onGeometryChange(for: CGSize.self) {
                         $0.size
-                    } action: {newValue in
+                    } action: { newValue in
                         contentSize = newValue
                     }
                     .fixedSize(horizontal: false, vertical: true)
@@ -51,11 +52,10 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable{
                     .blur(radius: 14 * blurProgress)
                     .opacity(1 - labelOpacity)
                     .frame(width: labelSize.width, height: labelSize.height)
-
             }
             .compositingGroup()
             .clipShape(.rect(cornerRadius: cornerRadius))
-            /// OPTIONAL: You can add property to make it clear glass effect!
+            // OPTIONAL: You can add property to make it clear glass effect!
             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
         }
         .scaleEffect(
@@ -65,35 +65,38 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable{
         )
         .offset(y: offset * blurProgress)
     }
-    var labelOpacity: CGFloat{
+
+    var labelOpacity: CGFloat {
         min(progress / 0.35, 1)
     }
 
-    var contentOpacity: CGFloat{
+    var contentOpacity: CGFloat {
         max(progress - 0.35, 0) / 0.65
     }
-    var contentScale: CGFloat{
+
+    var contentScale: CGFloat {
         let minAspectScale = min(labelSize.width / contentSize.width, labelSize.height / contentSize.height)
 
         return minAspectScale + (1 - minAspectScale) * progress
     }
 
     var blurProgress: CGFloat {
-        /// 0 -> 0.5 -> 0
+        // 0 -> 0.5 -> 0
         return progress > 0.5 ? (1 - progress) / 0.5 : progress / 0.5
     }
 
-    var offset: CGFloat{
-        switch alignment{
+    var offset: CGFloat {
+        switch alignment {
         case .bottom, .bottomLeading, .bottomTrailing: return -75
         case .top, .topLeading, .topTrailing: return 75
-        /// Center!
+        // Center!
         default: return -10
         }
     }
+
     /// Converting Alignment into UnitPoint for ScaleEffect
-    var scaleAnchor: UnitPoint{
-        switch alignment{
+    var scaleAnchor: UnitPoint {
+        switch alignment {
         case .bottomLeading: .bottomLeading
         case .bottom: .bottom
         case .bottomTrailing: .bottomTrailing
@@ -103,13 +106,10 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable{
         case .leading: .leading
         case .trailing: .trailing
         default: .center
-
-
         }
     }
-
 }
 
-//#Preview {
+// #Preview {
 //    ExpandingGlassEffect()
-//}
+// }
