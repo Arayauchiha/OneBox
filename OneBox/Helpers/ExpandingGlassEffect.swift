@@ -2,8 +2,6 @@
 //  ExpandingGlassEffect.swift
 //  OneBox
 //
-//  Created by Aryan singh on 26/03/26.
-//
 
 import SwiftUI
 
@@ -14,7 +12,7 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable {
     var cornerRadius: CGFloat = 30
     @ViewBuilder var content: Content
     @ViewBuilder var label: Label
-    /// View properties
+    
     @State private var contentSize: CGSize = .zero
 
     var animatableData: CGFloat {
@@ -25,7 +23,7 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable {
     var body: some View {
         GlassEffectContainer {
             let widthDiff = contentSize.width - labelSize.width
-            let heightDiff = contentSize.height - labelSize.height
+            let heightDiff = max(contentSize.height - labelSize.height, 0)
 
             let rWidth = widthDiff * contentOpacity
             let rHeight = heightDiff * contentOpacity
@@ -33,83 +31,47 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable {
             ZStack(alignment: alignment) {
                 content
                     .compositingGroup()
-                    .scaleEffect(contentScale)
-                    .blur(radius: 14 * blurProgress)
+                    .scaleEffect(contentScale, anchor: scaleAnchor)
+                    .blur(radius: 12 * blurProgress)
                     .opacity(contentOpacity)
-                    .onGeometryChange(for: CGSize.self) {
-                        $0.size
-                    } action: { newValue in
-                        contentSize = newValue
-                    }
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { contentSize = $0 }
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(
-                        width: labelSize.width + rWidth,
-                        height: labelSize.height + rHeight
-                    )
 
                 label
                     .compositingGroup()
-                    .blur(radius: 14 * blurProgress)
+                    .blur(radius: 12 * blurProgress)
                     .opacity(1 - labelOpacity)
                     .frame(width: labelSize.width, height: labelSize.height)
             }
-            .compositingGroup()
+            .frame(width: labelSize.width + rWidth, height: labelSize.height + rHeight)
             .clipShape(.rect(cornerRadius: cornerRadius))
-            // OPTIONAL: You can add property to make it clear glass effect!
             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
         }
-        .scaleEffect(
-            x: 1 - (blurProgress * 0.5),
-            y: 1 + (blurProgress * 0.35),
-            anchor: scaleAnchor
-        )
-        .offset(y: offset * blurProgress)
+        .offset(y: offset * (1 - blurProgress)) // THE ORIGINAL PHYSICS
     }
 
-    var labelOpacity: CGFloat {
-        min(progress / 0.35, 1)
-    }
-
-    var contentOpacity: CGFloat {
-        max(progress - 0.35, 0) / 0.65
-    }
+    var labelOpacity: CGFloat { min(progress / 0.35, 1) }
+    var contentOpacity: CGFloat { max(progress - 0.35, 0) / 0.65 }
+    var blurProgress: CGFloat { progress > 0.5 ? (1 - progress) / 0.5 : progress / 0.5 }
 
     var contentScale: CGFloat {
-        let minAspectScale = min(labelSize.width / contentSize.width, labelSize.height / contentSize.height)
-
+        let minAspectScale = min(labelSize.width / max(contentSize.width, 1), labelSize.height / max(contentSize.height, 1))
         return minAspectScale + (1 - minAspectScale) * progress
     }
 
-    var blurProgress: CGFloat {
-        // 0 -> 0.5 -> 0
-        return progress > 0.5 ? (1 - progress) / 0.5 : progress / 0.5
-    }
-
     var offset: CGFloat {
-        switch alignment {
-        case .bottom, .bottomLeading, .bottomTrailing: return -75
-        case .top, .topLeading, .topTrailing: return 75
-        // Center!
-        default: return -10
-        }
+        // ORIGINAL UPWARD OFFSET
+        let expandedHeight = contentSize.height
+        return isExpanded ? -expandedHeight / 2.3 : 0
     }
+    
+    var isExpanded: Bool { progress > 0.5 }
 
-    /// Converting Alignment into UnitPoint for ScaleEffect
     var scaleAnchor: UnitPoint {
         switch alignment {
-        case .bottomLeading: .bottomLeading
-        case .bottom: .bottom
-        case .bottomTrailing: .bottomTrailing
-        case .topLeading: .topLeading
-        case .top: .top
-        case .topTrailing: .topTrailing
-        case .leading: .leading
-        case .trailing: .trailing
-        default: .center
+        case .bottomLeading, .bottom: return .bottom
+        case .topLeading, .top: return .top
+        default: return .center
         }
     }
 }
-
-// #Preview {
-//    ExpandingGlassEffect()
-// }
