@@ -2,6 +2,8 @@
 //  ExpandingGlassEffect.swift
 //  OneBox
 //
+//  Created by Aryan singh on 26/03/26.
+//
 
 import SwiftUI
 
@@ -22,32 +24,42 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable {
 
     var body: some View {
         GlassEffectContainer {
-            let widthDiff = contentSize.width - labelSize.width
+            let widthDiff = max(contentSize.width - labelSize.width, 0)
             let heightDiff = max(contentSize.height - labelSize.height, 0)
 
             let rWidth = widthDiff * contentOpacity
             let rHeight = heightDiff * contentOpacity
 
-            ZStack(alignment: alignment) {
+            // FIXED: Alignment is now .bottom to ensure the base stays 
+            // pinned to the dock while the rest stretches UP.
+            ZStack(alignment: .bottom) {
                 content
                     .compositingGroup()
-                    .scaleEffect(contentScale, anchor: scaleAnchor)
-                    .blur(radius: 12 * blurProgress)
+                    .scaleEffect(contentScale, anchor: .bottom) // Anchor at bottom
+                    .blur(radius: 14 * blurProgress)
                     .opacity(contentOpacity)
-                    .onGeometryChange(for: CGSize.self) { $0.size } action: { contentSize = $0 }
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { newValue in
+                        contentSize = newValue
+                    }
                     .fixedSize(horizontal: false, vertical: true)
 
                 label
                     .compositingGroup()
-                    .blur(radius: 12 * blurProgress)
+                    .blur(radius: 14 * blurProgress)
                     .opacity(1 - labelOpacity)
                     .frame(width: labelSize.width, height: labelSize.height)
             }
-            .frame(width: labelSize.width + rWidth, height: labelSize.height + rHeight)
+            // FIXED: Using alignment .bottom here is crucial for upward growth
+            .frame(width: labelSize.width + rWidth, height: labelSize.height + rHeight, alignment: .bottom)
+            .compositingGroup()
             .clipShape(.rect(cornerRadius: cornerRadius))
             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
         }
-        .offset(y: offset * (1 - blurProgress)) // THE ORIGINAL PHYSICS
+        .scaleEffect(
+            x: 1 - (blurProgress * 0.4),
+            y: 1 + (blurProgress * 0.25),
+            anchor: .bottom // Anchored growth
+        )
     }
 
     var labelOpacity: CGFloat { min(progress / 0.35, 1) }
@@ -55,23 +67,8 @@ struct ExpandableGlassEffect<Content: View, Label: View>: View, Animatable {
     var blurProgress: CGFloat { progress > 0.5 ? (1 - progress) / 0.5 : progress / 0.5 }
 
     var contentScale: CGFloat {
-        let minAspectScale = min(labelSize.width / max(contentSize.width, 1), labelSize.height / max(contentSize.height, 1))
+        let minAspectScale = min(labelSize.width / (contentSize.width > 0 ? contentSize.width : 1), 
+                                 labelSize.height / (contentSize.height > 0 ? contentSize.height : 1))
         return minAspectScale + (1 - minAspectScale) * progress
-    }
-
-    var offset: CGFloat {
-        // ORIGINAL UPWARD OFFSET
-        let expandedHeight = contentSize.height
-        return isExpanded ? -expandedHeight / 2.3 : 0
-    }
-    
-    var isExpanded: Bool { progress > 0.5 }
-
-    var scaleAnchor: UnitPoint {
-        switch alignment {
-        case .bottomLeading, .bottom: return .bottom
-        case .topLeading, .top: return .top
-        default: return .center
-        }
     }
 }
