@@ -25,6 +25,6 @@ struct ImportHeroLabel: View {
         }
         .frame(maxWidth: .infinity)
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .oneBoxGlassCard(cornerRadius: 24, interactive: true)
     }
 }

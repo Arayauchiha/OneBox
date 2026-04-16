@@ -2,10 +2,15 @@ import SwiftUI
 
 struct DocumentWorkspaceScreen: View {
     let document: ImportedDocument
+    let previewDocument: ImportedDocument?
+    let selectedItems: [ImportSelectionItem]
+    let activeSelectedItemID: UUID?
     let onReplaceFromPhotos: () -> Void
     let onReplaceFromCamera: () -> Void
     let onReplaceFromFiles: () -> Void
     let onCancelDocument: () -> Void
+    let onRemoveSelectedItem: (UUID) -> Void
+    let onSelectSelectedItem: (UUID) -> Void
     private let cardCornerRadius: CGFloat = 24
 
     private var suggestedOperations: [OperationItem] {
@@ -49,12 +54,17 @@ struct DocumentWorkspaceScreen: View {
             VStack(alignment: .leading, spacing: 16) {
                 ImportedHeroCard(
                     document: document,
+                    previewDocument: previewDocument,
+                    selectedItems: selectedItems,
+                    activeSelectedItemID: activeSelectedItemID,
                     onReplaceFromPhotos: onReplaceFromPhotos,
                     onReplaceFromCamera: onReplaceFromCamera,
                     onReplaceFromFiles: onReplaceFromFiles,
                     onCancel: {},
                     onContinue: {},
-                    showActionButtons: false
+                    showActionButtons: false,
+                    onRemoveSelectedItem: onRemoveSelectedItem,
+                    onSelectSelectedItem: onSelectSelectedItem
                 )
 
                 sectionHeader("Suggested")

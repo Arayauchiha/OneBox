@@ -11,15 +11,16 @@ struct ContentView: View {
     @State private var selectedTab: MainTab = .home
     @State private var previousTab: MainTab = .home
     @State private var menuProgress: CGFloat = 0
+    @State private var quickActionTool: OperationItem?
 
     private let menuAnimation = Animation.bouncy(duration: 0.42, extraBounce: 0.08)
     private let operations: [QuickOperation] = [
-        .init(icon: "plus.square.on.square", title: "New Project", subtitle: "Start from template"),
-        .init(icon: "camera", title: "Scan", subtitle: "Capture and import"),
-        .init(icon: "wand.and.stars", title: "Enhance", subtitle: "Auto optimize content"),
-        .init(icon: "paperplane", title: "Send", subtitle: "Share to your team"),
-        .init(icon: "slider.horizontal.3", title: "Tune", subtitle: "Adjust settings quickly"),
-        .init(icon: "bookmark", title: "Save", subtitle: "Store for later")
+        .init(icon: "doc.richtext", title: "Image to PDF", subtitle: "Convert photos to PDF"),
+        .init(icon: "arrow.down.doc", title: "Compress PDF", subtitle: "Reduce file size"),
+        .init(icon: "doc.on.doc", title: "Merge PDF", subtitle: "Combine multiple PDFs"),
+        .init(icon: "text.viewfinder", title: "OCR", subtitle: "Extract text quickly"),
+        .init(icon: "folder", title: "Open Files", subtitle: "View saved outputs"),
+        .init(icon: "wrench.and.screwdriver", title: "Open Tools", subtitle: "Browse all utilities")
     ]
 
     var body: some View {
@@ -51,8 +52,8 @@ struct ContentView: View {
                     closeMenu()
                 }
 
-            FloatingActionCluster(operations: operations, progress: menuProgress) { _ in
-                closeMenu()
+            FloatingActionCluster(operations: operations, progress: menuProgress) { operation in
+                handleQuickOperation(operation)
             }
             .padding(.trailing, 20)
             .padding(.bottom, 92)
@@ -71,11 +72,34 @@ struct ContentView: View {
         .onDisappear {
             menuProgress = 0
         }
+        .sheet(item: $quickActionTool) { tool in
+            NavigationStack {
+                ToolDestinationScreen(tool: tool)
+            }
+        }
     }
 
     private func closeMenu() {
         withAnimation(menuAnimation) {
             menuProgress = 0
+        }
+    }
+
+    private func handleQuickOperation(_ operation: QuickOperation) {
+        closeMenu()
+
+        switch operation.title {
+        case "Open Files":
+            selectedTab = .files
+        case "Open Tools":
+            selectedTab = .tools
+        default:
+            if let tool = toolCategories
+                .flatMap(\.tools)
+                .first(where: { $0.title == operation.title }) {
+                quickActionTool = tool
+                selectedTab = .tools
+            }
         }
     }
 }

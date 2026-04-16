@@ -9,7 +9,10 @@ struct HomeScreen: View {
     @State private var showFileImporter = false
     @State private var showPhotosPicker = false
     @State private var showCameraPicker = false
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var selectedImportItems: [ImportSelectionItem] = []
+    @State private var activeSelectionID: UUID?
+    @State private var showImportOptions = false
     @State private var importStatusText = "No recent import"
     @State private var importedDocument: ImportedDocument?
     @State private var showWorkspace = false
@@ -27,7 +30,7 @@ struct HomeScreen: View {
             List {
                 Section {
                     heroContent
-                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                        .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 10, trailing: 0))
                         .listRowBackground(Color.clear)
                 }
 
@@ -90,20 +93,26 @@ struct HomeScreen: View {
             ) { result in
                 handleFileImport(result)
             }
-            .photosPicker(isPresented: $showPhotosPicker, selection: $selectedPhotoItem, matching: .images)
+            .photosPicker(
+                isPresented: $showPhotosPicker,
+                selection: $selectedPhotoItems,
+                maxSelectionCount: nil,
+                matching: .images
+            )
             .sheet(isPresented: $showCameraPicker) {
                 CameraPickerView(isPresented: $showCameraPicker) { image in
                     if let image {
+                        selectedImportItems = [ImportSelectionItem.fromCamera(image: image)]
+                        refreshImportedDocumentFromSelections()
                         importStatusText = "Captured 1 photo"
-                        importedDocument = ImportedDocument.fromCapturedImage(image)
                     } else {
                         importStatusText = "Camera cancelled"
                     }
                 }
                 .ignoresSafeArea()
             }
-            .onChange(of: selectedPhotoItem) { _, newItem in
-                handlePhotoSelection(newItem)
+            .onChange(of: selectedPhotoItems) { _, newItems in
+                handlePhotoSelections(newItems)
             }
             .onAppear {
                 reloadRecentFiles()
@@ -125,14 +134,37 @@ struct HomeScreen: View {
             } message: {
                 Text("Enter a new file name. Extension is kept automatically.")
             }
+            .confirmationDialog("Import Document", isPresented: $showImportOptions, titleVisibility: .visible) {
+                Button {
+                    showPhotosPicker = true
+                } label: {
+                    Label("Photo Library", systemImage: "photo.on.rectangle")
+                }
+
+                Button {
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        showCameraPicker = true
+                    } else {
+                        importStatusText = "Camera not available"
+                    }
+                } label: {
+                    Label("Take Photo or Video", systemImage: "camera")
+                }
+
+                Button {
+                    showFileImporter = true
+                } label: {
+                    Label("Choose File", systemImage: "folder")
+                }
+            }
         }
     }
 
     private func recentFileRow(_ file: StoredAppFile) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             HomeFileThumbnailView(file: file)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(file.fileName)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -149,8 +181,11 @@ struct HomeScreen: View {
             Text(file.typeLabel)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .oneBoxSecondaryPill(cornerRadius: 999)
         }
-        .padding(.vertical, 8)
+            .padding(.vertical, 10)
     }
 
     @ViewBuilder
@@ -158,6 +193,9 @@ struct HomeScreen: View {
         if let document = importedDocument {
             ImportedHeroCard(
                 document: document,
+                previewDocument: heroPreviewDocument,
+                selectedItems: selectedImportItems,
+                activeSelectedItemID: activeSelectionID,
                 onReplaceFromPhotos: {
                     showPhotosPicker = true
                 },
@@ -173,6 +211,7 @@ struct HomeScreen: View {
                 },
                 onCancel: {
                     withAnimation(.easeInOut(duration: 0.22)) {
+                        selectedImportItems = []
                         importedDocument = nil
                         importStatusText = "No recent import"
                     }
@@ -180,7 +219,21 @@ struct HomeScreen: View {
                 onContinue: {
                     showWorkspace = true
                 },
-                showActionButtons: true
+                showActionButtons: true,
+                onRemoveSelectedItem: { id in
+                    selectedImportItems.removeAll { $0.id == id }
+                    if activeSelectionID == id {
+                        activeSelectionID = selectedImportItems.first?.id
+                    }
+                    refreshImportedDocumentFromSelections()
+                    if selectedImportItems.isEmpty {
+                        importStatusText = "No recent import"
+                    }
+                }
+                ,
+                onSelectSelectedItem: { id in
+                    activeSelectionID = id
+                }
             )
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
         } else {
@@ -190,28 +243,8 @@ struct HomeScreen: View {
     }
 
     private var importMenuCard: some View {
-        Menu {
-            Button {
-                showPhotosPicker = true
-            } label: {
-                Label("Photo Library", systemImage: "photo.on.rectangle")
-            }
-
-            Button {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    showCameraPicker = true
-                } else {
-                    importStatusText = "Camera not available"
-                }
-            } label: {
-                Label("Take Photo or Video", systemImage: "camera")
-            }
-
-            Button {
-                showFileImporter = true
-            } label: {
-                Label("Choose File", systemImage: "folder")
-            }
+        Button {
+            showImportOptions = true
         } label: {
             ImportHeroLabel(statusText: importStatusText)
         }
@@ -223,6 +256,9 @@ struct HomeScreen: View {
         if let document = importedDocument {
             DocumentWorkspaceScreen(
                 document: document,
+                previewDocument: heroPreviewDocument,
+                selectedItems: selectedImportItems,
+                activeSelectedItemID: activeSelectionID,
                 onReplaceFromPhotos: {
                     showWorkspace = false
                     DispatchQueue.main.async {
@@ -247,8 +283,24 @@ struct HomeScreen: View {
                 },
                 onCancelDocument: {
                     showWorkspace = false
+                    selectedImportItems = []
                     importedDocument = nil
                     importStatusText = "No recent import"
+                },
+                onRemoveSelectedItem: { id in
+                    selectedImportItems.removeAll { $0.id == id }
+                    if activeSelectionID == id {
+                        activeSelectionID = selectedImportItems.first?.id
+                    }
+                    refreshImportedDocumentFromSelections()
+                    if selectedImportItems.isEmpty {
+                        showWorkspace = false
+                        importStatusText = "No recent import"
+                    }
+                }
+                ,
+                onSelectSelectedItem: { id in
+                    activeSelectionID = id
                 }
             )
         } else {
@@ -260,27 +312,58 @@ struct HomeScreen: View {
         switch result {
         case .success(let urls):
             importStatusText = "Imported \(urls.count) file\(urls.count == 1 ? "" : "s")"
-            if let first = urls.first {
-                importedDocument = ImportedDocument.fromImportedFile(url: first)
-            }
+            selectedImportItems = urls.map(ImportSelectionItem.fromFile)
+            activeSelectionID = selectedImportItems.first?.id
+            refreshImportedDocumentFromSelections()
         case .failure:
             importStatusText = "Import failed"
         }
     }
 
-    private func handlePhotoSelection(_ item: PhotosPickerItem?) {
-        guard let item else { return }
+    private func handlePhotoSelections(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
         Task {
-            let data = try? await item.loadTransferable(type: Data.self)
+            var loadedImages: [(image: UIImage, bytes: Int)] = []
+
+            for item in items {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    loadedImages.append((image, data.count))
+                }
+            }
+
             await MainActor.run {
-                if let data, let image = UIImage(data: data) {
-                    importStatusText = "Imported 1 photo"
-                    importedDocument = ImportedDocument.fromPhotoLibraryImage(image, byteCount: data.count)
+                if !loadedImages.isEmpty {
+                    selectedImportItems = loadedImages.enumerated().map { index, element in
+                        ImportSelectionItem.fromPhoto(image: element.image, byteCount: element.bytes, index: index)
+                    }
+                    activeSelectionID = selectedImportItems.first?.id
+                    refreshImportedDocumentFromSelections()
+                    importStatusText = "Imported \(loadedImages.count) photo\(loadedImages.count == 1 ? "" : "s")"
                 } else {
                     importStatusText = "Photo import failed"
                 }
+                selectedPhotoItems = []
             }
         }
+    }
+
+    private func refreshImportedDocumentFromSelections() {
+        importedDocument = ImportedDocument.fromSelections(selectedImportItems)
+    }
+
+    private var heroPreviewDocument: ImportedDocument? {
+        guard let document = importedDocument else { return nil }
+        guard let activeSelectionID,
+              let selectedItem = selectedImportItems.first(where: { $0.id == activeSelectionID }) else {
+            return document
+        }
+
+        return document.withPreview(
+            previewImage: selectedItem.previewImage,
+            previewURL: selectedItem.fileURL,
+            previewKey: activeSelectionID.uuidString
+        )
     }
 
     private func reloadRecentFiles() {

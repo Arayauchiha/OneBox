@@ -256,6 +256,8 @@
 				DEVELOPMENT_TEAM = 38CQNQ2ZCA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "OneBox uses the camera so you can capture documents and images for conversion and editing.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OneBox uses the microphone when recording video from the camera.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -288,6 +290,8 @@
 				DEVELOPMENT_TEAM = 38CQNQ2ZCA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "OneBox uses the camera so you can capture documents and images for conversion and editing.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OneBox uses the microphone when recording video from the camera.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

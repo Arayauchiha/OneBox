@@ -1,15 +1,15 @@
 import PDFKit
 import PhotosUI
-import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
+import VisionKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
-
 struct ImageToPDFToolScreen: View {
     @State private var photoSelections: [PhotosPickerItem] = []
     @State private var selectedImages: [SelectedImageItem] = []
     @State private var showFileImporter = false
+    @State private var showDocumentScanner = false
     @State private var isGenerating = false
     @State private var generatedOutput: PDFOutput?
     @State private var statusMessage = "Select one or more images to generate a PDF."
@@ -39,8 +39,21 @@ struct ImageToPDFToolScreen: View {
             .sheet(isPresented: $showSequenceEditor) {
                 ImageSequenceEditorSheet(images: $selectedImages)
             }
+            .sheet(isPresented: $showDocumentScanner) {
+                DocumentScannerView(
+                    onCancel: {
+                        statusMessage = "Scan cancelled."
+                    },
+                    onFail: { _ in
+                        statusMessage = "Scanner failed. Try again."
+                    },
+                    onComplete: { scannedImages in
+                        appendScannedImages(scannedImages)
+                    }
+                )
+            }
             .navigationDestination(item: $previewDocument) { document in
-                NativeQuickLookPreview(url: document.url)
+                QuickLookDocumentPreview(url: document.url)
                     .ignoresSafeArea()
             }
     }
@@ -72,13 +85,29 @@ struct ImageToPDFToolScreen: View {
             Text("Import Images")
                 .font(.headline)
 
-            Text("Choose from Photos or Files. Everything is processed on-device.")
+            Text("Choose from Photos, Files, or Scan. Everything is processed on-device.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 10) {
                 PhotosPicker(selection: $photoSelections, maxSelectionCount: nil, matching: .images) {
                     Label("Photos", systemImage: "photo.on.rectangle")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    if VNDocumentCameraViewController.isSupported {
+                        showDocumentScanner = true
+                    } else {
+                        statusMessage = "Scanner is not supported on this device."
+                    }
+                } label: {
+                    Label("Scan", systemImage: "doc.viewfinder")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
@@ -145,11 +174,25 @@ struct ImageToPDFToolScreen: View {
                     HStack(spacing: 10) {
                         ForEach(selectedImages) { item in
                             VStack(alignment: .leading, spacing: 8) {
-                                Image(uiImage: ImageToPDFService.filteredImage(for: item.image, filter: selectedFilter))
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 108, height: 108)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: ImageToPDFService.filteredImage(for: item.image, filter: selectedFilter))
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 108, height: 108)
+                                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                                    Button {
+                                        removeSelectedImage(item.id)
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(.primary)
+                                            .padding(6)
+                                            .background(.ultraThinMaterial, in: Circle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(5)
+                                }
 
                                 Text(item.name)
                                     .font(.caption)
@@ -321,6 +364,30 @@ struct ImageToPDFToolScreen: View {
         case .failure:
             statusMessage = "Could not import files."
         }
+    }
+
+    private func removeSelectedImage(_ id: UUID) {
+        selectedImages.removeAll { $0.id == id }
+        generatedOutput = nil
+        statusMessage = selectedImages.isEmpty
+            ? "Select one or more images to generate a PDF."
+            : "Ready to generate a \(selectedImages.count)-page PDF."
+    }
+
+    private func appendScannedImages(_ scannedImages: [UIImage]) {
+        guard !scannedImages.isEmpty else {
+            statusMessage = "No pages were scanned."
+            return
+        }
+
+        let baseCount = selectedImages.count
+        let appended = scannedImages.enumerated().map { index, image in
+            SelectedImageItem(image: image, name: "Scan \(baseCount + index + 1)")
+        }
+
+        selectedImages.append(contentsOf: appended)
+        generatedOutput = nil
+        statusMessage = "Scanned \(scannedImages.count) page\(scannedImages.count == 1 ? "" : "s"). Ready to generate a \(selectedImages.count)-page PDF."
     }
 
     private func generatePDF() async {
@@ -559,59 +626,6 @@ private struct ImageSequenceEditorSheet: View {
                     EditButton()
                 }
             }
-        }
-    }
-}
-
-private struct NativeQuickLookPreview: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(url: url)
-    }
-
-    func makeUIViewController(context: Context) -> QLPreviewController {
-        let controller = QLPreviewController()
-        controller.dataSource = context.coordinator
-        controller.delegate = context.coordinator
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
-        context.coordinator.url = url
-        uiViewController.reloadData()
-    }
-
-    final class Coordinator: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDelegate {
-        var url: URL
-
-        init(url: URL) {
-            self.url = url
-        }
-
-        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
-            FileManager.default.fileExists(atPath: url.path) ? 1 : 0
-        }
-
-        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
-            PreviewItem(previewURL: url)
-        }
-
-        func previewController(_ controller: QLPreviewController, editingModeFor previewItem: any QLPreviewItem) -> QLPreviewItemEditingMode {
-            .updateContents
-        }
-
-        func previewController(_ controller: QLPreviewController, didUpdateContentsOf previewItem: any QLPreviewItem) {
-            guard let updatedURL = previewItem.previewItemURL else { return }
-            url = updatedURL
-        }
-    }
-
-    private final class PreviewItem: NSObject, QLPreviewItem {
-        let previewItemURL: URL?
-
-        init(previewURL: URL) {
-            self.previewItemURL = previewURL
         }
     }
 }

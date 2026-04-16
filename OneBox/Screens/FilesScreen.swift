@@ -33,22 +33,10 @@ struct FilesScreen: View {
                 Section("Collections") {
                     ForEach(collections) { collection in
                         NavigationLink(value: collection.filter) {
-                            HStack(spacing: 12) {
-                                Image(systemName: collection.icon)
-                                    .font(.body)
-                                    .frame(width: 30, height: 30)
-
-                                Text(collection.title)
-                                    .font(.body.weight(.semibold))
-
-                                Spacer()
-
-                                Text("\(collection.count)")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 4)
+                            collectionRow(collection)
+                            .padding(.vertical, 8)
                         }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     }
                 }
 
@@ -94,6 +82,7 @@ struct FilesScreen: View {
                                 }
                                 .tint(.blue)
                             }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         }
                     }
                 }
@@ -109,7 +98,7 @@ struct FilesScreen: View {
                 StoredFileDetailScreen(file: file)
             }
             .navigationDestination(for: FileCollectionFilter.self) { filter in
-                CollectionFilesScreen(title: filter.title, files: files(for: filter))
+                CollectionFilesScreen(filter: filter)
             }
             .onAppear {
                 reloadFiles()
@@ -130,10 +119,10 @@ struct FilesScreen: View {
     }
 
     private func fileRow(_ file: StoredAppFile) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             FileThumbnailView(file: file)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(file.fileName)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -150,8 +139,39 @@ struct FilesScreen: View {
             Text(file.typeLabel)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .oneBoxSecondaryPill(cornerRadius: 999)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
+    }
+
+    private func collectionRow(_ collection: FileCollection) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: collection.icon)
+                .font(.body.weight(.medium))
+                .frame(width: 34, height: 34)
+                .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(collection.title)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(collection.count == 1 ? "1 item" : "\(collection.count) items")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text("\(collection.count)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .oneBoxSecondaryPill(cornerRadius: 999)
+        }
     }
 
     private func files(for filter: FileCollectionFilter) -> [StoredAppFile] {
@@ -222,8 +242,25 @@ private struct StoredFileDetailScreen: View {
 }
 
 private struct CollectionFilesScreen: View {
-    let title: String
-    let files: [StoredAppFile]
+    let filter: FileCollectionFilter
+
+    @State private var storedFiles: [StoredAppFile] = []
+    @State private var filePendingRename: StoredAppFile?
+    @State private var renameText = ""
+    @State private var showingRenameAlert = false
+
+    private var files: [StoredAppFile] {
+        switch filter {
+        case .recent:
+            return storedFiles
+        case .pdf:
+            return storedFiles.filter { $0.kind == .pdf }
+        case .images:
+            return storedFiles.filter { $0.kind == .image }
+        case .other:
+            return storedFiles.filter { $0.kind == .other }
+        }
+    }
 
     var body: some View {
         List {
@@ -234,10 +271,10 @@ private struct CollectionFilesScreen: View {
             } else {
                 ForEach(files) { file in
                     NavigationLink(value: file) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: 14) {
                             FileThumbnailView(file: file)
 
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 5) {
                                 Text(file.fileName)
                                     .font(.subheadline.weight(.semibold))
                                     .lineLimit(1)
@@ -248,17 +285,109 @@ private struct CollectionFilesScreen: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
+
+                            Spacer()
+
+                            Text(file.typeLabel)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .oneBoxSecondaryPill(cornerRadius: 999)
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 10)
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .contextMenu {
+                        Button {
+                            beginRename(file)
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+
+                        ShareLink(item: file.fileURL) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button(role: .destructive) {
+                            deleteFile(file)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            deleteFile(file)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button {
+                            beginRename(file)
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(title)
+        .navigationTitle(filter.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: StoredAppFile.self) { file in
             StoredFileDetailScreen(file: file)
+        }
+        .onAppear {
+            reloadFiles()
+        }
+        .alert("Rename File", isPresented: $showingRenameAlert) {
+            TextField("New file name", text: $renameText)
+            Button("Cancel", role: .cancel) {
+                filePendingRename = nil
+                renameText = ""
+            }
+            Button("Save") {
+                commitRename()
+            }
+        } message: {
+            Text("Enter a new file name. Extension is kept automatically.")
+        }
+    }
+
+    private func reloadFiles() {
+        storedFiles = OneBoxFileStore.loadAll()
+    }
+
+    private func beginRename(_ file: StoredAppFile) {
+        filePendingRename = file
+        renameText = (file.fileName as NSString).deletingPathExtension
+        showingRenameAlert = true
+    }
+
+    private func commitRename() {
+        guard let file = filePendingRename else { return }
+        let newName = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty else { return }
+
+        do {
+            _ = try OneBoxFileStore.rename(fileID: file.id, newName: newName)
+            reloadFiles()
+        } catch {
+            // Keep the UI calm for now; we can add explicit error toast later.
+        }
+
+        filePendingRename = nil
+        renameText = ""
+    }
+
+    private func deleteFile(_ file: StoredAppFile) {
+        do {
+            try OneBoxFileStore.delete(fileID: file.id)
+            reloadFiles()
+        } catch {
+            // Keep the UI calm for now; we can add explicit error toast later.
         }
     }
 }

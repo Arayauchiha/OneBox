@@ -11,6 +11,7 @@ struct QuickLookDocumentPreview: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> QLPreviewController {
         let controller = QLPreviewController()
         controller.dataSource = context.coordinator
+        controller.delegate = context.coordinator
         return controller
     }
 
@@ -19,7 +20,7 @@ struct QuickLookDocumentPreview: UIViewControllerRepresentable {
         uiViewController.reloadData()
     }
 
-    final class Coordinator: NSObject, QLPreviewControllerDataSource {
+    final class Coordinator: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDelegate {
         var url: URL
 
         init(url: URL) {
@@ -32,6 +33,19 @@ struct QuickLookDocumentPreview: UIViewControllerRepresentable {
 
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
             PreviewItem(previewURL: url)
+        }
+
+        func previewController(_ controller: QLPreviewController, editingModeFor previewItem: any QLPreviewItem) -> QLPreviewItemEditingMode {
+            .createCopy
+        }
+
+        func previewController(_ controller: QLPreviewController, didUpdateContentsOf previewItem: any QLPreviewItem) {
+            guard let updatedURL = previewItem.previewItemURL else { return }
+            url = updatedURL
+        }
+
+        func previewController(_ controller: QLPreviewController, didSaveEditedCopyOf previewItem: any QLPreviewItem, at modifiedContentsURL: URL) {
+            url = modifiedContentsURL
         }
     }
 

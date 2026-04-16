@@ -8,14 +8,14 @@ struct ToolsScreen: View {
     @State private var showCategoryDetail = false
     @State private var selectedTool: OperationItem?
     @State private var showToolDestination = false
-    @State private var showAllMostCommon = false
 
     private let categoryColumns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14)
     ]
     private let pageHorizontalPadding: CGFloat = 16
     private let cardCornerRadius: CGFloat = 24
+    private let categoryCardCornerRadius: CGFloat = 20
 
     private var allTools: [OperationItem] {
         toolCategories.flatMap(\.tools)
@@ -25,25 +25,24 @@ struct ToolsScreen: View {
         allTools.filter { favoriteToolTitles.contains($0.title) }
     }
 
-    private var mostCommonTools: [OperationItem] {
+    private var generalTools: [OperationItem] {
         [
+            "Image to PDF",
             "Compress PDF",
             "Merge PDF",
-            "Image to PDF",
             "Resize",
             "OCR",
-            "Sign PDF"
+            "Sign PDF",
+            "Background Remove",
+            "Convert Format"
         ].compactMap { title in
             allTools.first(where: { $0.title == title })
         }
     }
 
-    private var visibleMostCommonTools: [OperationItem] {
-        showAllMostCommon ? mostCommonTools : Array(mostCommonTools.prefix(4))
-    }
-
     private var favoriteCategory: ToolCategory {
         ToolCategory(
+            id: "favorites",
             title: "Favorites",
             icon: "star.fill",
             subtitle: favoriteTools.isEmpty ? "Pin tools to see them here" : "Your pinned tools",
@@ -68,45 +67,7 @@ struct ToolsScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("Categories")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        LazyVGrid(columns: categoryColumns, spacing: 8) {
-                            ForEach(categoriesForList) { category in
-                                Button {
-                                    selectedCategory = category
-                                    showCategoryDetail = true
-                                } label: {
-                                    categoryCard(category)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        Text("Most Common")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 6)
-
-                        mostCommonCard
-                    } else {
-                        Text("Results")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        if filteredTools.isEmpty {
-                            Text("No tools found")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 2)
-                        } else {
-                            toolListCard(filteredTools)
-                        }
-                    }
-                }
+                toolsContent
                 .padding(.horizontal, pageHorizontalPadding)
                 .padding(.top, 8)
                 .padding(.bottom, 28)
@@ -144,12 +105,65 @@ struct ToolsScreen: View {
         }
     }
 
+    @ViewBuilder
+    private var toolsContent: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 18) {
+                toolsSections
+            }
+        } else {
+            toolsSections
+        }
+    }
+
+    private var toolsSections: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Categories")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(columns: categoryColumns, spacing: 14) {
+                    ForEach(categoriesForList) { category in
+                        Button {
+                            selectedCategory = category
+                            showCategoryDetail = true
+                        } label: {
+                            categoryCard(category)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text("General Tools")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 10)
+
+                toolListCard(generalTools)
+            } else {
+                Text("Results")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                if filteredTools.isEmpty {
+                    Text("No tools found")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                } else {
+                    toolListCard(filteredTools)
+                }
+            }
+        }
+    }
+
     private func toolListCard(_ tools: [OperationItem]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                 toolRow(tool)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         selectedTool = tool
@@ -162,46 +176,23 @@ struct ToolsScreen: View {
                 }
             }
         }
-        .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.04), lineWidth: 1)
-        )
-    }
-
-    private var mostCommonCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            toolListCard(visibleMostCommonTools)
-
-            if mostCommonTools.count > 4 {
-                Button(showAllMostCommon ? "Show less" : "Show all") {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        showAllMostCommon.toggle()
-                    }
-                }
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-            }
-        }
+        .oneBoxGlassCard(cornerRadius: cardCornerRadius)
     }
 
     private func toolRow(_ tool: OperationItem) -> some View {
         HStack(spacing: 12) {
             Image(systemName: tool.icon)
-                .font(.body)
-                .frame(width: 30, height: 30)
+                .font(.body.weight(.medium))
+                .frame(width: 34, height: 34)
+                .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(tool.title)
-                    .font(.body.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 Text(tool.subtitle)
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -220,7 +211,7 @@ struct ToolsScreen: View {
     }
 
     private func categoryCard(_ category: ToolCategory) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: category.icon)
                     .font(.body)
@@ -246,16 +237,9 @@ struct ToolsScreen: View {
 
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .padding(12)
-        .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+        .padding(14)
+        .oneBoxGlassCard(cornerRadius: categoryCardCornerRadius)
     }
 
     private func toggleFavorite(_ tool: OperationItem) {
@@ -308,21 +292,7 @@ struct ToolCategoryDetailScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if visibleTools.isEmpty {
-                    Text("No tools found")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else if layoutMode == .list {
-                    toolListCard(visibleTools)
-                } else {
-                    LazyVGrid(columns: toolGridColumns, spacing: 12) {
-                        ForEach(visibleTools) { tool in
-                            toolGridCard(tool)
-                        }
-                    }
-                }
-            }
+            detailContent
             .padding(.horizontal, pageHorizontalPadding)
             .padding(.top, 8)
             .padding(.bottom, 28)
@@ -353,12 +323,41 @@ struct ToolCategoryDetailScreen: View {
         }
     }
 
+    @ViewBuilder
+    private var detailContent: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 16) {
+                detailSections
+            }
+        } else {
+            detailSections
+        }
+    }
+
+    private var detailSections: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if visibleTools.isEmpty {
+                Text("No tools found")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else if layoutMode == .list {
+                toolListCard(visibleTools)
+            } else {
+                LazyVGrid(columns: toolGridColumns, spacing: 14) {
+                    ForEach(visibleTools) { tool in
+                        toolGridCard(tool)
+                    }
+                }
+            }
+        }
+    }
+
     private func toolListCard(_ tools: [OperationItem]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                 toolListRow(tool)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 15)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         selectedTool = tool
@@ -367,18 +366,11 @@ struct ToolCategoryDetailScreen: View {
 
                 if index < tools.count - 1 {
                     Divider()
-                        .padding(.leading, 56)
+                        .padding(.leading, 66)
                 }
             }
         }
-        .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.04), lineWidth: 1)
-        )
+        .oneBoxGlassCard(cornerRadius: cardCornerRadius)
     }
 
     private func toggleFavorite(_ tool: OperationItem) {
@@ -392,15 +384,17 @@ struct ToolCategoryDetailScreen: View {
     private func toolListRow(_ tool: OperationItem) -> some View {
         HStack(spacing: 12) {
             Image(systemName: tool.icon)
-                .font(.body)
-                .frame(width: 30, height: 30)
+                .font(.body.weight(.medium))
+                .frame(width: 34, height: 34)
+                .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(tool.title)
-                    .font(.body.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 Text(tool.subtitle)
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -420,12 +414,13 @@ struct ToolCategoryDetailScreen: View {
     }
 
     private func toolGridCard(_ tool: OperationItem) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Image(systemName: tool.icon)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .frame(width: 24, height: 24)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 Spacer()
 
@@ -458,13 +453,6 @@ struct ToolCategoryDetailScreen: View {
             selectedTool = tool
             showToolDestination = true
         }
-        .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-        )
+        .oneBoxGlassCard(cornerRadius: cardCornerRadius)
     }
 }

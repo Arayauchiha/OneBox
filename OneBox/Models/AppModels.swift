@@ -22,6 +22,67 @@ enum ImportedDocumentKind {
     case other
 }
 
+enum ImportSelectionSource: String {
+    case photos
+    case camera
+    case files
+}
+
+struct ImportSelectionItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let source: ImportSelectionSource
+    let previewImage: UIImage?
+    let byteCount: Int?
+    let fileURL: URL?
+    let typeLabel: String
+    let systemIcon: String
+
+    static func fromPhoto(image: UIImage, byteCount: Int, index: Int) -> ImportSelectionItem {
+        ImportSelectionItem(
+            name: "Photo \(index + 1)",
+            source: .photos,
+            previewImage: image,
+            byteCount: byteCount,
+            fileURL: nil,
+            typeLabel: "JPG",
+            systemIcon: "photo"
+        )
+    }
+
+    static func fromCamera(image: UIImage) -> ImportSelectionItem {
+        ImportSelectionItem(
+            name: "Captured Image",
+            source: .camera,
+            previewImage: image,
+            byteCount: nil,
+            fileURL: nil,
+            typeLabel: "JPG",
+            systemIcon: "camera"
+        )
+    }
+
+    static func fromFile(url: URL) -> ImportSelectionItem {
+        let ext = url.pathExtension.uppercased()
+        let type = UTType(filenameExtension: url.pathExtension)
+        let icon: String = {
+            if type?.conforms(to: .image) == true { return "photo" }
+            if type?.conforms(to: .pdf) == true { return "doc.richtext" }
+            return "doc"
+        }()
+
+        return ImportSelectionItem(
+            name: url.lastPathComponent,
+            source: .files,
+            previewImage: UIImage(contentsOfFile: url.path),
+            byteCount: (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize),
+            fileURL: url,
+            typeLabel: ext.isEmpty ? "FILE" : ext,
+            systemIcon: icon
+        )
+    }
+}
+
 struct ImportedDocument {
     let id = UUID()
     let name: String
@@ -32,7 +93,25 @@ struct ImportedDocument {
     let importedAtLabel: String
     let systemIcon: String
     let previewImage: UIImage?
+    let previewURL: URL?
+    let previewKey: String
     let kind: ImportedDocumentKind
+
+    func withPreview(previewImage: UIImage?, previewURL: URL?, previewKey: String) -> ImportedDocument {
+        ImportedDocument(
+            name: name,
+            typeLabel: typeLabel,
+            sizeLabel: sizeLabel,
+            pagesLabel: pagesLabel,
+            sourceLabel: sourceLabel,
+            importedAtLabel: importedAtLabel,
+            systemIcon: systemIcon,
+            previewImage: previewImage,
+            previewURL: previewURL,
+            previewKey: previewKey,
+            kind: kind
+        )
+    }
 
     static func fromImportedFile(url: URL) -> ImportedDocument {
         let ext = url.pathExtension.uppercased()
@@ -63,6 +142,8 @@ struct ImportedDocument {
             importedAtLabel: Date().formatted(date: .omitted, time: .shortened),
             systemIcon: icon,
             previewImage: nil,
+            previewURL: kind == .pdf ? url : nil,
+            previewKey: url.absoluteString,
             kind: kind
         )
     }
@@ -77,6 +158,24 @@ struct ImportedDocument {
             importedAtLabel: Date().formatted(date: .omitted, time: .shortened),
             systemIcon: "photo",
             previewImage: image,
+            previewURL: nil,
+            previewKey: UUID().uuidString,
+            kind: .image
+        )
+    }
+
+    static func fromPhotoLibraryImages(_ image: UIImage, totalCount: Int, totalByteCount: Int) -> ImportedDocument {
+        ImportedDocument(
+            name: totalCount > 1 ? "Photo Library Selection" : "Photo Library Image",
+            typeLabel: "JPG",
+            sizeLabel: ByteCountFormatter.string(fromByteCount: Int64(totalByteCount), countStyle: .file),
+            pagesLabel: "\(max(totalCount, 1))",
+            sourceLabel: "Photos",
+            importedAtLabel: Date().formatted(date: .omitted, time: .shortened),
+            systemIcon: "photo",
+            previewImage: image,
+            previewURL: nil,
+            previewKey: UUID().uuidString,
             kind: .image
         )
     }
@@ -91,17 +190,74 @@ struct ImportedDocument {
             importedAtLabel: Date().formatted(date: .omitted, time: .shortened),
             systemIcon: "camera",
             previewImage: image,
+            previewURL: nil,
+            previewKey: UUID().uuidString,
             kind: .image
+        )
+    }
+
+    static func fromSelections(_ selections: [ImportSelectionItem]) -> ImportedDocument? {
+        guard let first = selections.first else { return nil }
+
+        if selections.count == 1, let fileURL = first.fileURL {
+            return fromImportedFile(url: fileURL)
+        }
+
+        let sourceLabel: String = {
+            let sources = Set(selections.map(\.source))
+            if sources.count > 1 { return "Mixed" }
+            switch sources.first {
+            case .photos: return "Photos"
+            case .camera: return "Camera"
+            case .files: return "Files"
+            case nil: return "Unknown"
+            }
+        }()
+
+        let totalByteCount = selections.compactMap(\.byteCount).reduce(0, +)
+        let sizeLabel = totalByteCount > 0
+            ? ByteCountFormatter.string(fromByteCount: Int64(totalByteCount), countStyle: .file)
+            : "-"
+
+        let hasOnlyImages = selections.allSatisfy { item in
+            if item.previewImage != nil { return true }
+            if let url = item.fileURL {
+                let type = UTType(filenameExtension: url.pathExtension)
+                return type?.conforms(to: .image) == true
+            }
+            return false
+        }
+
+        return ImportedDocument(
+            name: selections.count == 1 ? first.name : "\(selections.count) selected items",
+            typeLabel: selections.count == 1 ? first.typeLabel : (hasOnlyImages ? "IMG" : "MIXED"),
+            sizeLabel: sizeLabel,
+            pagesLabel: "\(max(selections.count, 1))",
+            sourceLabel: sourceLabel,
+            importedAtLabel: Date().formatted(date: .omitted, time: .shortened),
+            systemIcon: selections.count == 1 ? first.systemIcon : "doc.on.doc",
+            previewImage: first.previewImage,
+            previewURL: first.fileURL,
+            previewKey: first.fileURL?.absoluteString ?? first.id.uuidString,
+            kind: hasOnlyImages ? .image : .other
         )
     }
 }
 
 struct ToolCategory: Identifiable {
-    let id = UUID()
+    let id: String
     let title: String
     let icon: String
     let subtitle: String
     let tools: [OperationItem]
+
+    init(id: String = UUID().uuidString, title: String, icon: String, subtitle: String, tools: [OperationItem]) {
+        self.id = id
+        self.title = title
+        self.icon = icon
+        self.subtitle = subtitle
+        self.tools = tools
+    }
 }
 
 let toolCategories: [ToolCategory] = [
