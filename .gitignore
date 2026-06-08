@@ -1,0 +1,11 @@
+# Xcode
+#
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+project.xcworkspace/
+
+# Secrets
+OneBox/Services/Secrets.plist

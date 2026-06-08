@@ -16,11 +16,21 @@ struct ImageToPDFToolScreen: View {
     @State private var selectedFilter: PDFImageFilter = .none
     @State private var showSequenceEditor = false
     @State private var previewDocument: PreviewDocument?
+    
+    // New: Support for pre-selected images from workspace
+    private var initialItems: [ImportSelectionItem]?
+    
+    init(initialItems: [ImportSelectionItem]? = nil) {
+        self.initialItems = initialItems
+    }
 
     private let cardCornerRadius: CGFloat = 24
 
     var body: some View {
         mainContent
+            .onAppear {
+                loadInitialItems()
+            }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Image to PDF")
             .navigationBarTitleDisplayMode(.inline)
@@ -68,6 +78,35 @@ struct ImageToPDFToolScreen: View {
             }
             .padding(16)
             .padding(.bottom, 24)
+        }
+    }
+    
+    private func loadInitialItems() {
+        guard let items = initialItems, !selectedImages.isEmpty == false else { return }
+        
+        let loaded = items.compactMap { item -> SelectedImageItem? in
+            if let image = item.previewImage {
+                return SelectedImageItem(image: image, name: item.name)
+            } else if let url = item.fileURL {
+                let secured = url.startAccessingSecurityScopedResource()
+                defer {
+                    if secured {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+                
+                guard let data = try? Data(contentsOf: url),
+                      let image = UIImage(data: data) else {
+                    return nil
+                }
+                return SelectedImageItem(image: image, name: item.name)
+            }
+            return nil
+        }
+        
+        if !loaded.isEmpty {
+            selectedImages = loaded
+            statusMessage = "Ready to generate a \(loaded.count)-page PDF."
         }
     }
 

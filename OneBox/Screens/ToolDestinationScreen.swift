@@ -2,24 +2,71 @@ import SwiftUI
 
 struct ToolDestinationScreen: View {
     let tool: OperationItem
+    var initialItems: [ImportSelectionItem]? = nil
+    
+    @AppStorage("favorite_tool_titles") private var favoriteToolTitlesStorage = ""
 
     var body: some View {
-        switch tool.title {
-        case "Image to PDF":
-            ImageToPDFToolScreen()
-        case "Resize", "Compress", "Background Remove":
-            ToolPlannedScreen(
-                tool: tool,
-                nextStepTitle: nextStepTitle(for: tool.title),
-                nextStepSubtitle: nextStepSubtitle(for: tool.title)
-            )
-        default:
-            ToolPlannedScreen(
-                tool: tool,
-                nextStepTitle: "Tool Integration Planned",
-                nextStepSubtitle: "This operation is queued for a native on-device implementation."
-            )
+        Group {
+            switch tool.title {
+            case "Image to PDF", "Convert to PDF":
+                ImageToPDFToolScreen(initialItems: initialItems)
+            case "Merge PDF", "Merge":
+                MergePDFToolScreen()
+            case "Compress PDF", "Compress":
+                CompressPDFToolScreen()
+            case "OCR":
+                OCRToolScreen(initialItems: initialItems)
+            case "Background Remove":
+                BackgroundRemovalToolScreen(initialItems: initialItems)
+            case "Resize":
+                ToolPlannedScreen(
+                    tool: tool,
+                    nextStepTitle: nextStepTitle(for: tool.title),
+                    nextStepSubtitle: nextStepSubtitle(for: tool.title)
+                )
+            default:
+                ToolPlannedScreen(
+                    tool: tool,
+                    nextStepTitle: "Tool Integration Planned",
+                    nextStepSubtitle: "This operation is queued for a native on-device implementation."
+                )
+            }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    toggleFavorite()
+                } label: {
+                    Image(systemName: isFavorite ? "star.fill" : "star")
+                        .foregroundStyle(isFavorite ? .yellow : .primary)
+                }
+            }
+        }
+    }
+    
+    private var isFavorite: Bool {
+        let favorites = decodeFavorites(favoriteToolTitlesStorage)
+        return favorites.contains(tool.title)
+    }
+    
+    private func toggleFavorite() {
+        var favorites = decodeFavorites(favoriteToolTitlesStorage)
+        if favorites.contains(tool.title) {
+            favorites.remove(tool.title)
+        } else {
+            favorites.insert(tool.title)
+        }
+        favoriteToolTitlesStorage = encodeFavorites(favorites)
+    }
+    
+    private func decodeFavorites(_ value: String) -> Set<String> {
+        let items = value.split(separator: "|").map(String.init)
+        return Set(items)
+    }
+
+    private func encodeFavorites(_ favorites: Set<String>) -> String {
+        favorites.sorted().joined(separator: "|")
     }
 
     private func nextStepTitle(for title: String) -> String {
@@ -53,6 +100,7 @@ private struct ToolPlannedScreen: View {
     let tool: OperationItem
     let nextStepTitle: String
     let nextStepSubtitle: String
+
 
     var body: some View {
         ScrollView {

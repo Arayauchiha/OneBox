@@ -29,65 +29,67 @@ struct FilesScreen: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Collections") {
-                    ForEach(collections) { collection in
-                        NavigationLink(value: collection.filter) {
-                            collectionRow(collection)
-                            .padding(.vertical, 8)
-                        }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                    }
-                }
-
-                Section("OneBox Outputs") {
-                    if visibleFiles.isEmpty {
-                        Text("No files yet. Generated outputs like Image to PDF will appear here.")
-                            .font(.subheadline)
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Collections")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(visibleFiles) { file in
-                            NavigationLink(value: file) {
-                                fileRow(file)
-                            }
-                            .contextMenu {
-                                Button {
-                                    beginRename(file)
-                                } label: {
-                                    Label("Rename", systemImage: "pencil")
-                                }
+                            .padding(.leading, 4)
 
-                                ShareLink(item: file.fileURL) {
-                                    Label("Share", systemImage: "square.and.arrow.up")
-                                }
+                        ForEach(collections) { collection in
+                            NavigationLink(value: collection.filter) {
+                                collectionRow(collection)
+                                    .oneBoxGlassCard()
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
 
-                                Button(role: .destructive) {
-                                    deleteFile(file)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("OneBox Outputs")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
+
+                        if visibleFiles.isEmpty {
+                            Text("No files yet. Generated outputs like Image to PDF will appear here.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 40)
+                                .oneBoxGlassCard()
+                        } else {
+                            ForEach(visibleFiles) { file in
+                                NavigationLink(value: file) {
+                                    fileRow(file)
+                                        .oneBoxGlassCard()
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        beginRename(file)
+                                    } label: {
+                                        Label("Rename", systemImage: "pencil")
+                                    }
+
+                                    ShareLink(item: file.fileURL) {
+                                        Label("Share", systemImage: "square.and.arrow.up")
+                                    }
+
+                                    Button(role: .destructive) {
+                                        deleteFile(file)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    deleteFile(file)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    beginRename(file)
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
-                            }
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 120)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("Files")
             .searchable(
                 text: $searchText,

@@ -27,60 +27,55 @@ struct HomeScreen: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 16) {
                     heroContent
-                        .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 10, trailing: 0))
-                        .listRowBackground(Color.clear)
-                }
+                        .padding(.top, 8)
 
-                Section("Recent Outputs") {
-                    if recentFiles.isEmpty {
-                        Text("No outputs yet. Generate something from a tool and it will appear here.")
-                            .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Recent Outputs")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(recentFiles) { file in
-                            NavigationLink(value: file) {
-                                recentFileRow(file)
-                            }
-                            .contextMenu {
-                                Button {
-                                    beginRename(file)
-                                } label: {
-                                    Label("Rename", systemImage: "pencil")
-                                }
+                            .padding(.leading, 4)
 
-                                ShareLink(item: file.fileURL) {
-                                    Label("Share", systemImage: "square.and.arrow.up")
+                        if recentFiles.isEmpty {
+                            Text("No outputs yet. Generate something from a tool and it will appear here.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 40)
+                                .oneBoxGlassCard()
+                        } else {
+                            ForEach(recentFiles) { file in
+                                NavigationLink(value: file) {
+                                    recentFileRow(file)
+                                        .oneBoxGlassCard()
                                 }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        beginRename(file)
+                                    } label: {
+                                        Label("Rename", systemImage: "pencil")
+                                    }
 
-                                Button(role: .destructive) {
-                                    deleteFile(file)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                                    ShareLink(item: file.fileURL) {
+                                        Label("Share", systemImage: "square.and.arrow.up")
+                                    }
+
+                                    Button(role: .destructive) {
+                                        deleteFile(file)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    deleteFile(file)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    beginRename(file)
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
                             }
                         }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 120)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("Home")
             .navigationDestination(isPresented: $showWorkspace, destination: workspaceDestination)
             .navigationDestination(for: StoredAppFile.self) { file in
@@ -178,14 +173,11 @@ struct HomeScreen: View {
 
             Spacer()
 
-            Text(file.typeLabel)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .oneBoxSecondaryPill(cornerRadius: 999)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-            .padding(.vertical, 10)
+        .padding(16)
     }
 
     @ViewBuilder

@@ -23,8 +23,10 @@ struct ContentView: View {
         .init(icon: "wrench.and.screwdriver", title: "Open Tools", subtitle: "Browse all utilities")
     ]
 
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
             TabView(selection: $selectedTab) {
                 Tab("Home", systemImage: "house", value: .home) {
                     HomeScreen()
@@ -55,8 +57,9 @@ struct ContentView: View {
             FloatingActionCluster(operations: operations, progress: menuProgress) { operation in
                 handleQuickOperation(operation)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, 20)
-            .padding(.bottom, 92)
+            .padding(.bottom, verticalSizeClass == .compact ? 16 : 92)
             .allowsHitTesting(menuProgress > 0.01)
         }
         .onChange(of: selectedTab) { _, newValue in
